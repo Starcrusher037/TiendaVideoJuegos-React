@@ -8,7 +8,7 @@ import { formatearPrecio } from '../data/products';
  * 1. Visualizar los artículos añadidos con su imagen, título, precio unitario y subtotal.
  * 2. Incrementar o decrementar la cantidad por producto (eliminándose automáticamente si llega a 0).
  * 3. Eliminar un producto directamente mediante el botón de papelera.
- * 4. Ver el total acumulado de unidades e importe en pesos chilenos.
+ * 4. Ver el total acumulado de unidades y total en pesos chilenos.
  * 5. Vaciar todo el carrito o proceder a la finalización de compra.
  * 
  * @param {Object} props

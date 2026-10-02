@@ -4,14 +4,16 @@ import Body from './components/Body';
 import Footer from './components/Footer';
 import CartOffcanvas from './components/CartOffcanvas';
 import Toast from './components/Toast';
-import { formatearPrecio } from './data/products';
+import { productosIniciales, productosDigitales, formatearPrecio } from './data/products';
 
 /**
  * Componente Principal App
  * 
  * Orquestador central de la aplicación de comercio electrónico "Carlos's Duty".
  * Administra el estado global de la aplicación:
- * - Persistencia del carrito de compras en LocalStorage del navegador.
+ * - Requisito useState: Gestión del estado del catálogo de productos y del carrito de compras.
+ * - Requisito useEffect: Carga asíncrona de videojuegos desde la API externa de RAWG con respaldo local.
+ * - Persistencia del carrito en LocalStorage del navegador.
  * - Visibilidad del panel lateral del carrito (Offcanvas).
  * - Filtros globales: término de búsqueda y categoría seleccionada.
  * - Sistema de notificaciones temporales (Toast).
@@ -19,7 +21,15 @@ import { formatearPrecio } from './data/products';
  */
 export default function App() {
   /**
-   * 1. Estado del Carrito con Inicialización Perezosa (Lazy Initialization)
+   * 1. Estado del Catálogo de Productos (Requisito: Gestión de Estados con useState)
+   * Almacena la colección de productos disponibles para la venta.
+   */
+  const [productos, setProductos] = useState([]);
+  const [cargandoProductos, setCargandoProductos] = useState(true);
+  const [origenDatos, setOrigenDatos] = useState('cargando'); // 'api' | 'local'
+
+  /**
+   * 2. Estado del Carrito con Inicialización Perezosa (Lazy Initialization)
    * Lee directamente desde el LocalStorage al montar el componente.
    * Si ocurre un error de deserialización (JSON inválido) o no existe data, retorna un arreglo vacío [].
    */
@@ -33,11 +43,79 @@ export default function App() {
     }
   });
 
-  // 2. Estados de interfaz de usuario y filtros de catálogo
+  // 3. Estados de interfaz de usuario y filtros de catálogo
   const [carritoAbierto, setCarritoAbierto] = useState(false);
   const [terminoBusqueda, setTerminoBusqueda] = useState('');
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('all');
   const [notificacion, setNotificacion] = useState(null);
+
+  /**
+   * Requisito: Manejo de Efectos con useEffect
+   * Carga de datos de productos desde fuente externa (API pública de videojuegos RAWG).
+   * Si la API responde con éxito, transforma los datos al formato del eCommerce
+   * y actualiza el estado 'productos'. En caso de fallo o desconexión, activa un respaldo local.
+   */
+  useEffect(() => {
+    let montado = true;
+
+    const obtenerProductosDesdeApi = async () => {
+      try {
+        // Lectura de la API Key desde variables de entorno (.env) con respaldo de seguridad
+        const apiKey = import.meta.env.VITE_RAWG_API_KEY || '1f7b69f414be4ce1a4a794bed9932e61';
+
+        // Petición a la API pública de videojuegos RAWG (Top 16 juegos aclamados)
+        const respuesta = await fetch(
+          `https://api.rawg.io/api/games?key=${apiKey}&page_size=16`
+        );
+
+        if (!respuesta.ok) {
+          throw new Error(`Respuesta de API no exitosa: HTTP ${respuesta.status}`);
+        }
+
+        const datos = await respuesta.json();
+
+        // Mapeo adaptativo: convertimos el schema de RAWG a la estructura de nuestra tienda
+        const videojuegosApi = (datos.results || []).map((juego) => {
+          // Asignación de precio simulado en pesos chilenos según la calificación
+          const calificacion = Number(juego.rating) || 4.2;
+          const precioCalculado = Math.round((calificacion * 11500) / 1000) * 1000 + 9990;
+
+          return {
+            id: `rawg-${juego.id}`,
+            titulo: juego.name,
+            categoria: 'Videojuegos',
+            subcategoria: juego.genres?.[0]?.name || 'Acción',
+            precio: precioCalculado,
+            imagen: juego.background_image || 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=500&auto=format&fit=crop',
+            descripcion: `Lanzamiento: ${juego.released || 'Reciente'} • Calificación: ⭐ ${calificacion}/5 en RAWG.`,
+            badge: juego.metacritic ? `META ${juego.metacritic}` : 'TOP RAWG',
+            badgeClass: 'bg-primary'
+          };
+        });
+
+        if (montado) {
+          // Fusionamos productos de hardware iniciales (consolas y accesorios) con los juegos de la API
+          setProductos([...productosIniciales, ...videojuegosApi]);
+          setOrigenDatos('api');
+          setCargandoProductos(false);
+        }
+      } catch (error) {
+        console.warn('Aviso: No se pudo obtener datos de RAWG API, usando respaldo local:', error);
+        if (montado) {
+          // Respaldo resiliente: usamos el catálogo local garantizando que la aplicación nunca quede vacía
+          setProductos([...productosIniciales, ...productosDigitales]);
+          setOrigenDatos('local');
+          setCargandoProductos(false);
+        }
+      }
+    };
+
+    obtenerProductosDesdeApi();
+
+    return () => {
+      montado = false;
+    };
+  }, []);
 
   /**
    * Efecto de Sincronización con LocalStorage:
@@ -194,8 +272,12 @@ export default function App() {
         alSeleccionarCategoria={(categoria) => setCategoriaSeleccionada(categoria)}
       />
 
-      {/* 2. Cuerpo y catálogo (Listado de productos, filtros y catálogo digital dinámico) */}
+      {/* 2. Cuerpo y catálogo (Listado de productos, filtros y catálogo dinámico con API) */}
       <Body
+        productos={productos}
+        cargando={cargandoProductos}
+        origenDatos={origenDatos}
+        carrito={carrito}
         terminoBusqueda={terminoBusqueda}
         categoriaSeleccionada={categoriaSeleccionada}
         alRestablecerFiltros={manejarRestablecerFiltros}

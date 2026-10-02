@@ -54,6 +54,16 @@ export default function Footer({ alMostrarNotificacion }) {
       return;
     }
 
+    if(/\d/.test(nombre)){
+      alMostrarNotificacion('El nombre no puede contener números.', 'warning');
+      return;
+    }
+
+    if(!email.includes('@')){
+      alMostrarNotificacion('Por favor, ingresa un correo electrónico válido.', 'warning');
+      return;
+    }
+
     setFormularioEnviado(true);
     if (alMostrarNotificacion) {
       alMostrarNotificacion(`¡Gracias ${nombre}! Hemos recibido tu mensaje.`);

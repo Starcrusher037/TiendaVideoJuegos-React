@@ -1,43 +1,35 @@
-import { useState } from 'react';
 import ProductCard from './ProductCard';
-import { productosIniciales, productosDigitales } from '../data/products';
 
 /**
  * Componente Body
  * 
  * Contenedor principal de la sección de productos y catálogo.
  * Gestiona:
- * 1. La integración del catálogo digital bajo demanda mediante un estado asíncrono simulado.
- * 2. El filtrado reactivo de productos por categoría y por término de búsqueda multi-campo.
- * 3. La renderización de tarjetas de producto o mensajes informativos cuando no hay coincidencias.
+ * 1. El filtrado reactivo del catálogo (administrado en useState vía useEffect).
+ * 2. El renderizado condicional del estado de carga (Spinner durante petición a la API).
+ * 3. La renderización de tarjetas de producto con conocimiento de su estado en el carrito.
+ * 4. Alertas informativas cuando no hay coincidencias de búsqueda.
  * 
  * @param {Object} props
+ * @param {Array} props.productos - Lista de productos proveniente del estado global (useState en App).
+ * @param {boolean} props.cargando - Bandera que indica si la API externa aún está cargando datos.
+ * @param {string} props.origenDatos - Indica la procedencia de los datos ('api' o 'local').
+ * @param {Array} props.carrito - Arreglo con los ítems agregados al carrito para calcular cantidades.
  * @param {string} props.terminoBusqueda - Texto ingresado por el usuario en la barra de búsqueda.
  * @param {string} props.categoriaSeleccionada - Categoría activa para el filtro ('all', 'Consolas', 'Videojuegos', etc.).
  * @param {Function} props.alRestablecerFiltros - Función para limpiar la búsqueda y restaurar el catálogo completo.
  * @param {Function} props.alAgregarAlCarrito - Callback ejecutado al presionar "Agregar al carrito" en cualquier tarjeta.
  */
 export default function Body({
+  productos = [],
+  cargando = false,
+  origenDatos = 'api',
+  carrito = [],
   terminoBusqueda,
   categoriaSeleccionada,
   alRestablecerFiltros,
   alAgregarAlCarrito
 }) {
-  // Estado que indica si los productos digitales ya fueron cargados e incorporados al catálogo
-  const [catalogoDigitalCargado, setCatalogoDigitalCargado] = useState(false);
-
-  // Estado que indica si la petición simulada de carga del catálogo digital está en progreso
-  const [cargandoCatalogoDigital, setCargandoCatalogoDigital] = useState(false);
-
-  /**
-   * Colección completa de productos disponibles según el estado actual.
-   * Si 'catalogoDigitalCargado' es verdadero, se fusionan los productos iniciales con los digitales
-   * usando el operador spread (...), de lo contrario sólo se presentan los iniciales.
-   */
-  const todosLosProductos = catalogoDigitalCargado
-    ? [...productosIniciales, ...productosDigitales]
-    : productosIniciales;
-
   /**
    * Algoritmo de filtrado reactivo:
    * Evalúa cada producto contra la categoría seleccionada y el texto de búsqueda.
@@ -47,7 +39,7 @@ export default function Body({
    * - Subcategoría (si existe)
    * - Descripción
    */
-  const productosFiltrados = todosLosProductos.filter((producto) => {
+  const productosFiltrados = productos.filter((producto) => {
     // Verificación de coincidencia por categoría seleccionada
     const coincideCategoria =
       categoriaSeleccionada === 'all' ||
@@ -64,22 +56,10 @@ export default function Body({
       producto.titulo.toLowerCase().includes(textoLimpio) ||
       producto.categoria.toLowerCase().includes(textoLimpio) ||
       (producto.subcategoria && producto.subcategoria.toLowerCase().includes(textoLimpio)) ||
-      producto.descripcion.toLowerCase().includes(textoLimpio);
+      (producto.descripcion && producto.descripcion.toLowerCase().includes(textoLimpio));
 
     return coincideCategoria && coincideBusqueda;
   });
-
-  /**
-   * Manejador para cargar el catálogo digital con una simulación de latencia de red (600ms).
-   * Muestra un indicador de carga (spinner) mientras dura el proceso.
-   */
-  const manejarCargaDigital = () => {
-    setCargandoCatalogoDigital(true);
-    setTimeout(() => {
-      setCatalogoDigitalCargado(true);
-      setCargandoCatalogoDigital(false);
-    }, 600);
-  };
 
   // Flag booleano para determinar si existe algún filtro activo aplicado
   const estaFiltrando = Boolean(terminoBusqueda) || categoriaSeleccionada !== 'all';
@@ -89,11 +69,22 @@ export default function Body({
       <section id="productos" className="container my-5" aria-labelledby="titulo-productos">
         <div className="section-wrapper p-4 p-md-5 rounded-4">
           
-          {/* Cabecera de la sección: Título dinámico y botón para reiniciar filtros */}
+          {/* Cabecera de la sección: Título dinámico, origen de datos y botón para reiniciar filtros */}
           <div className="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 gap-3">
-            <h2 id="titulo-productos" className="text-uppercase fw-bold m-0 section-title">
-              {categoriaSeleccionada === 'all' ? 'Productos destacados' : `Categoría: ${categoriaSeleccionada}`}
-            </h2>
+            <div>
+              <h2 id="titulo-productos" className="text-uppercase fw-bold m-0 section-title">
+                {categoriaSeleccionada === 'all' ? 'Productos destacados' : `Categoría: ${categoriaSeleccionada}`}
+              </h2>
+              {/* Indicador de procedencia de los datos (API pública o respaldo) */}
+              {!cargando && (
+                <div className="small mt-2 text-secondary">
+                  <span className={`badge ${origenDatos === 'api' ? 'bg-dark border border-success text-neon' : 'bg-dark border border-warning text-warning'}`}>
+                    <i className={`bi ${origenDatos === 'api' ? 'bi-broadcast' : 'bi-hdd-fill'} me-1`}></i>
+                    {origenDatos === 'api' ? 'Datos en vivo desde RAWG Games API' : 'Catálogo local activo'}
+                  </span>
+                </div>
+              )}
+            </div>
 
             {estaFiltrando && (
               <button
@@ -108,7 +99,7 @@ export default function Body({
           </div>
 
           {/* Alertas informativas sobre los resultados de búsqueda */}
-          {terminoBusqueda && (
+          {terminoBusqueda && !cargando && (
             <div className="mb-4">
               {productosFiltrados.length > 0 ? (
                 <div className="alert alert-dark border-success text-light d-flex justify-content-between align-items-center shadow-sm">
@@ -124,7 +115,7 @@ export default function Body({
                   <i className="bi bi-search display-6 text-warning mb-2 d-block"></i>
                   <h5 className="fw-bold text-warning">No encontramos productos para "{terminoBusqueda}"</h5>
                   <p className="text-muted small mb-3">
-                    Intenta buscar con palabras clave más generales (ej: "PlayStation", "Xbox", "Zelda").
+                    Intenta buscar con palabras clave más generales (ej: "PlayStation", "Xbox", "Zelda", "Grand Theft Auto").
                   </p>
                   <button className="btn btn-outline-neon btn-sm" type="button" onClick={alRestablecerFiltros}>
                     Restablecer catálogo
@@ -134,48 +125,57 @@ export default function Body({
             </div>
           )}
 
-          {/* Cuadrícula responsiva con las tarjetas de productos */}
-          <div className="row g-4">
-            {productosFiltrados.map((producto) => (
-              <ProductCard
-                key={producto.id}
-                producto={producto}
-                alAgregarAlCarrito={alAgregarAlCarrito}
-              />
-            ))}
-          </div>
+          {/* 
+            Requisito: Renderizado Condicional
+            1. Mientras 'cargando === true': muestra un spinner gamer neón.
+            2. Cuando termina la carga: despliega la cuadrícula con las tarjetas.
+          */}
+          {cargando ? (
+            <div className="text-center py-5 my-5">
+              <div
+                className="spinner-border text-neon mb-3"
+                style={{ width: '3.5rem', height: '3.5rem', borderWidth: '0.35rem' }}
+                role="status"
+              >
+                <span className="visually-hidden">Cargando catálogo...</span>
+              </div>
+              <h4 className="text-neon fw-bold mb-2">Conectando con RAWG Video Games API...</h4>
+              <p className="text-secondary small mb-0">Cargando catálogo dinámico y actualizando estados de la tienda.</p>
+            </div>
+          ) : (
+            <div className="row g-4">
+              {productosFiltrados.map((producto) => {
+                // Buscamos si este producto ya está en el carrito para pasar la cantidad
+                const itemEnCarrito = carrito.find((item) => String(item.id) === String(producto.id));
+                const cantidadEnCarrito = itemEnCarrito ? itemEnCarrito.cantidad : 0;
 
-          {/* Sección inferior para carga diferida de juegos digitales */}
+                return (
+                  <ProductCard
+                    key={producto.id}
+                    producto={producto}
+                    cantidadEnCarrito={cantidadEnCarrito}
+                    alAgregarAlCarrito={alAgregarAlCarrito}
+                  />
+                );
+              })}
+            </div>
+          )}
+
+          {/* Pie de catálogo con información de la API y soporte */}
           <div className="mt-5 text-center">
             <hr className="my-5 border-secondary opacity-50" />
-            <h3 className="text-uppercase fw-bold text-neon mb-2">Catálogo Digital Online</h3>
-            <p className="text-secondary mb-4">Amplio catálogo de juegos digitales listos para descargar.</p>
-
-            {!catalogoDigitalCargado ? (
-              <button
-                className="btn btn-neon px-4 py-2 mb-2 d-inline-flex align-items-center gap-2"
-                type="button"
-                onClick={manejarCargaDigital}
-                disabled={cargandoCatalogoDigital}
-              >
-                {cargandoCatalogoDigital ? (
-                  <>
-                    <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                    Cargando catálogo...
-                  </>
-                ) : (
-                  <>
-                    <i className="bi bi-cloud-arrow-down-fill" aria-hidden="true"></i>
-                    Cargar Catálogo Digital
-                  </>
-                )}
-              </button>
-            ) : (
-              <div className="badge bg-dark border border-success text-neon p-2 px-3 fs-6">
-                <i className="bi bi-check-circle-fill me-2"></i>
-                Catálogo Digital Cargado e Integrado
-              </div>
-            )}
+            <h3 className="text-uppercase fw-bold text-neon mb-2">Catálogo Gaming en Tiempo Real</h3>
+            <p className="text-secondary mb-3">
+              Catálogo sincronizado mediante efectos secundarios (<code>useEffect</code>) con la API pública de RAWG y gestionado en <code>useState</code>.
+            </p>
+            <div className="d-flex justify-content-center gap-2 flex-wrap">
+              <span className="badge bg-black border border-secondary text-light px-3 py-2">
+                 {productos.length} Productos Disponibles
+              </span>
+              <span className="badge bg-black border border-success text-neon px-3 py-2">
+                 Renderizado React 19 Activo
+              </span>
+            </div>
           </div>
         </div>
       </section>
