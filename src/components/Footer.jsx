@@ -54,13 +54,20 @@ export default function Footer({ alMostrarNotificacion }) {
       return;
     }
 
-    if(/\d/.test(nombre)){
+    if (/\d/.test(nombre)) {
       alMostrarNotificacion('El nombre no puede contener números.', 'warning');
       return;
     }
 
-    if(!email.includes('@')){
-      alMostrarNotificacion('Por favor, ingresa un correo electrónico válido.', 'warning');
+    const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+    if (!regexEmail.test(email)) {
+      alMostrarNotificacion('Por favor, ingresa un correo electrónico válido (ejemplo@dominio.com).', 'warning');
+      return;
+    }
+
+    if (mensaje.length > 200) {
+      alMostrarNotificacion('El mensaje es demasiado largo. no debe exceder los 200 caracteres.', 'warning');
       return;
     }
 
@@ -79,7 +86,7 @@ export default function Footer({ alMostrarNotificacion }) {
   return (
     <footer id="contacto" className="custom-footer py-5 mt-auto">
       <div className="container text-center">
-        
+
         {/* Formulario de Contacto interactivo */}
         <div className="row justify-content-center mb-5">
           <div className="col-12 col-md-8 col-lg-6">
